@@ -160,6 +160,9 @@ class CILogonOAuthenticator(OAuthenticator):
 
         .. versionchanged:: 15.0.0
             `CILogonOAuthenticaor.allowed_idps` changed type from list to dict
+
+        .. versionchanged:: 15.1.0-osg.1
+            Allow `*` to function as a catch-all idp
         """,
     )
 
@@ -175,6 +178,10 @@ class CILogonOAuthenticator(OAuthenticator):
                 schema = yaml.load(schema_fd)
                 # Raises useful exception if validation fails
                 jsonschema.validate(username_derivation, schema)
+
+            # There is nothing else to validate for the catch-all idp.
+            if entity_id == "*":
+                continue
 
             # Make sure allowed_idps containes EntityIDs and not domain names.
             accepted_entity_id_scheme = ["urn", "https", "http"]
@@ -306,22 +313,30 @@ class CILogonOAuthenticator(OAuthenticator):
         if self.additional_username_claims:
             claimlist.extend(self.additional_username_claims)
 
+        allowed_keys = self.allowed_idps.keys()
         selected_idp = resp_json.get("idp")
+        # The key into `allowed_idps` depends on whether the catch-all idp is configured.
+        selected_idp_key = selected_idp
         # Check if selected idp was marked as allowed
         if self.allowed_idps:
             # Faild hard if idp wasn't allowed
-            if selected_idp not in self.allowed_idps.keys():
-                self.log.error(
-                    f"Trying to login from an identity provider that was not allowed {selected_idp}",
-                )
-                raise web.HTTPError(
-                    500,
-                    "Trying to login using an identity provider that was not allowed",
-                )
+            if selected_idp not in allowed_keys:
+                if "*" in allowed_keys:
+                    selected_idp_key = "*"
+                else:
+                    self.log.error(
+                        f"Trying to login from an identity provider that was not allowed {selected_idp}",
+                    )
+                    raise web.HTTPError(
+                        500,
+                        "Trying to login using an identity provider that was not allowed",
+                    )
 
             # The username_claim which should be used for this idp
             claimlist = [
-                self.allowed_idps[selected_idp]["username_derivation"]["username_claim"]
+                self.allowed_idps[selected_idp_key]["username_derivation"][
+                    "username_claim"
+                ]
             ]
 
         # Check if the requested username_claim exists in the response from the provider
@@ -329,11 +344,11 @@ class CILogonOAuthenticator(OAuthenticator):
 
         # Check if we need to strip/prefix username
         if self.allowed_idps:
-            username_derivation_config = self.allowed_idps[selected_idp][
+            username_derivation_config = self.allowed_idps[selected_idp_key][
                 "username_derivation"
             ]
             action = username_derivation_config.get("action", None)
-            allowed_domains = self.allowed_idps[selected_idp].get(
+            allowed_domains = self.allowed_idps[selected_idp_key].get(
                 "allowed_domains", None
             )
 
