@@ -163,6 +163,9 @@ class CILogonOAuthenticator(OAuthenticator):
 
         .. versionchanged:: 15.1.0-osg.1
             Allow `*` to function as a catch-all idp
+
+        .. versionchanged:: 15.1.0-osg.2
+            Add `orcid` as a `username_derivation.action` for handling the `eduPersonOrcid` claim
         """,
     )
 
@@ -372,6 +375,9 @@ class CILogonOAuthenticator(OAuthenticator):
             elif action == "prefix":
                 prefix = username_derivation_config["prefix"]
                 username = f"{prefix}:{username}"
+            elif action == "orcid":
+                # The `eduPersonOrcid` claim looks like: http://orcid.org/0000-0000-0000-0000
+                username = f'orcid:{username.split("/")[-1]}'
 
         userdict = {"name": username}
         # Now we set up auth_state
