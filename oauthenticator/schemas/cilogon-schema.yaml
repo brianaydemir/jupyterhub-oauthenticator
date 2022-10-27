@@ -20,6 +20,7 @@ properties:
         enum:
           - strip_idp_domain
           - prefix
+          - orcid
       domain:
         type: string
       prefix:
