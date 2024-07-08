@@ -13,6 +13,7 @@ Caveats:
   email instead of ePPN as the JupyterHub username.
 """
 import os
+import re
 from urllib.parse import urlparse
 
 import jsonschema
