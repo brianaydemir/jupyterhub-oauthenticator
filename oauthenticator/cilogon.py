@@ -392,6 +392,13 @@ class CILogonOAuthenticator(OAuthenticator):
         auth_state['cilogon_user'] = resp_json
         return userdict
 
+    def check_blocked_users(self, username, authentication=None):
+        """Treat `blocked_users` as a list of regexps."""
+        for pattern in (self.blocked_users or []):
+            if re.match(rf'^{pattern}$', username):
+                return False
+        return True
+
 
 class LocalCILogonOAuthenticator(LocalAuthenticator, CILogonOAuthenticator):
 
