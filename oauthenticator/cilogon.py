@@ -3,6 +3,7 @@ A JupyterHub authenticator class for use with CILogon as an identity provider.
 """
 
 import os
+import re
 from collections import defaultdict
 from fnmatch import fnmatch
 from urllib.parse import urlparse
@@ -471,6 +472,17 @@ class CILogonOAuthenticator(OAuthenticator):
 
         # users should be explicitly allowed via config, otherwise they aren't
         return False
+
+
+    def check_blocked_users(self, username, authentication):
+        """
+        Overrides `Authenticator.check_blocked_users` to also check
+        for regular expression matches.
+        """
+        for pattern in self.blocked_users or []:
+            if re.match(rf'^{pattern}$', username):
+                return False
+        return super().check_blocked_users(username, authentication)
 
 
 class LocalCILogonOAuthenticator(LocalAuthenticator, CILogonOAuthenticator):
