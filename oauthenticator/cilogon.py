@@ -3,6 +3,7 @@ A JupyterHub authenticator class for use with CILogon as an identity provider.
 """
 
 import os
+from collections import defaultdict
 from fnmatch import fnmatch
 from urllib.parse import urlparse
 
@@ -49,9 +50,10 @@ class CILogonLoginHandler(OAuthLoginHandler):
         # include it, we then modify kwargs' extra_params dictionary
         extra_params = kwargs.setdefault('extra_params', {})
 
-        extra_params["selected_idp"] = _get_select_idp_param(
-            self.authenticator.allowed_idps
-        )
+        if not self.authenticator.default_idp_config:
+            extra_params["selected_idp"] = _get_select_idp_param(
+                self.authenticator.allowed_idps
+            )
         if self.authenticator.skin:
             extra_params["skin"] = self.authenticator.skin
 
@@ -126,9 +128,9 @@ class CILogonOAuthenticator(OAuthenticator):
     allowed_idps = Dict(
         config=True,
         help="""
-        A dictionary of the only entity IDs that will be allowed to be used as
-        login options. See https://cilogon.org/idplist for the list of
-        `EntityIDs` of each IdP.
+        A dictionary of the only entity IDs that will be allowed to be used
+        as login options, unless `default_idp_config` is also set. See
+        https://cilogon.org/idplist for the list of `EntityIDs` of each IdP.
 
         It can be used to enable domain stripping, adding prefixes to the
         usernames and to specify an identity provider specific username claim.
@@ -225,7 +227,7 @@ class CILogonOAuthenticator(OAuthenticator):
     def _validate_allowed_idps(self, proposal):
         idps = proposal.value
 
-        if not idps:
+        if not idps and not self.default_idp_config:
             raise ValueError("One or more allowed_idps must be configured")
 
         for entity_id, idp_config in idps.items():
@@ -255,7 +257,33 @@ class CILogonOAuthenticator(OAuthenticator):
                 ad.lower() for ad in idp_config.get("allowed_domains", [])
             ]
 
+        if self.default_idp_config:
+            idps = defaultdict(lambda: self.default_idp_config, idps)
+
         return idps
+
+    default_idp_config = Dict(
+        config=True,
+        help="""
+        If set, used as the configuration for any entity IDs not listed in
+        `allowed_idps`.
+        """,
+    )
+
+    @validate("default_idp_config")
+    def _validate_default_idp_config(self, proposal):
+        idp_config = proposal.value
+
+        if idp_config:
+            # Validate `idp_config` config using the schema
+            root_dir = os.path.dirname(os.path.abspath(__file__))
+            schema_file = os.path.join(root_dir, "schemas", "cilogon-schema.yaml")
+            with open(schema_file) as schema_fd:
+                schema = yaml.load(schema_fd)
+                # Raises useful exception if validation fails
+                jsonschema.validate(idp_config, schema)
+
+        return idp_config
 
     skin = Unicode(
         config=True,
@@ -345,7 +373,7 @@ class CILogonOAuthenticator(OAuthenticator):
             message = "'idp' claim was not part of the response to the userdata_url"
             self.log.error(message)
             raise web.HTTPError(500, message)
-        if not self.allowed_idps.get(user_idp):
+        if not self.allowed_idps.get(user_idp) and not self.default_idp_config:
             message = f"Login with identity provider {user_idp} is not pre-configured"
             self.log.error(message)
             raise web.HTTPError(403, message)
