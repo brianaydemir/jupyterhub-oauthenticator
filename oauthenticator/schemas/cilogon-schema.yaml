@@ -30,6 +30,7 @@ properties:
         enum:
           - strip_idp_domain
           - prefix
+          - replace_orcid_domain
       domain:
         type: string
       prefix:
