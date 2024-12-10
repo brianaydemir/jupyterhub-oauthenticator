@@ -417,6 +417,11 @@ class CILogonOAuthenticator(OAuthenticator):
         elif action == "prefix":
             prefix = username_derivation["prefix"]
             username = f"{prefix}:{username}"
+        elif action == "replace_orcid_domain":
+            # The `eduPersonOrcid` claim looks like "http://orcid.org/0000-0000-0000-0000"
+            username = username.split("/")[-1]
+            if prefix := username_derivation.get("prefix"):
+                username = f"{prefix}:{username}"
 
         return username
 
