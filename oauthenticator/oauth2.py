@@ -1097,6 +1097,9 @@ class OAuthenticator(Authenticator):
 
         Called by :meth:`.authenticate` and :meth:`.refresh_user`.
         """
+
+        self.log.error(f"token_info: {token_info}")
+
         if self.userdata_from_id_token:
             # Use id token instead of exchanging access token with userinfo endpoint.
             id_token = token_info.get("id_token", None)
